@@ -1,0 +1,223 @@
+.split-thread {
+    display: none;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    gap: 0;
+}
+
+.split-thread.active {
+    display: flex;
+}
+
+.split-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.split-column.left {
+    border-right: none;
+}
+
+.column-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.split-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.split-divider {
+    width: 1px;
+    background: var(--border-color);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+}
+
+.v-pill {
+    position: absolute;
+    top: 10px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-weight: 800;
+    font-size: 10px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transform: translateY(12px);
+}
+
+/* Response Label Style from Mockup */
+.model-response-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-color);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+    opacity: 0.8;
+}
+
+/* Adjustments for chat bubbles in split view */
+.split-messages .chat-message-ai,
+.split-messages .chat-message-user {
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 12px 16px;
+    border-radius: 12px;
+}
+
+.split-messages .chat-message-ai {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Fix for Thinking box (loading state) */
+.split-messages .chat-message-ai:has(.loading) {
+    background: transparent;
+    padding: 0 12px;
+    margin-bottom: 12px;
+}
+
+.split-messages .loading {
+    margin-top: 0;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 10px 16px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.split-messages .loading span {
+    font-size: 13px;
+    letter-spacing: 0.02em;
+}
+
+/* Scrollbar styling for split view - Sleeker */
+.split-messages::-webkit-scrollbar {
+    width: 3px;
+}
+
+.split-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.split-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+}
+
+.split-messages::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+}
+
+/* Dropdown Overrides for Split Headers */
+.column-header .custom-dropdown {
+    max-width: 280px;
+}
+
+.column-header .dropdown-trigger {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 10px;
+}
+
+.column-header .dropdown-trigger:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.column-header .dropdown-value {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+/* Speed and Performance Badges */
+.speed-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.faster-badge {
+    color: #ff9d00;
+    background: rgba(255, 157, 0, 0.1);
+    border: 1px solid rgba(255, 157, 0, 0.2);
+    font-size: 9px;
+    padding: 1px 5px;
+    text-transform: uppercase;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.8; }
+}
+
+.split-title-header {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.split-title-header::before {
+    content: '';
+    display: block;
+    width: 3px;
+    height: 14px;
+    background: var(--accent-color);
+    border-radius: 10px;
+}
+
+/* Animations */
+.split-thread.active {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

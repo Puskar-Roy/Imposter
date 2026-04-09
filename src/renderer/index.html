@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="css/components/onboarding.css">
     <link rel="stylesheet" href="css/components/models.css">
     <link rel="stylesheet" href="css/components/dropdown.css">
+    <link rel="stylesheet" href="css/components/split-view.css">
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -49,6 +50,12 @@
                             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 20h9"></path>
                             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                    </button>
+                    <button id="split-view-btn" class="icon-button" title="Toggle Split-View" style="opacity: 0.6;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="12" y1="3" x2="12" y2="21"></line>
                         </svg>
                     </button>
                     <button id="settings-link" class="icon-button" title="Settings">
@@ -87,6 +94,33 @@
                     <h2>Imposter</h2>
                     <p id="tagline-text">Beating a Broken System</p>
                     <div id="greeting-container"></div>
+                </div>
+            </div>
+
+            <!-- Split-View Interface -->
+            <div id="split-content" class="split-thread">
+                <div class="split-column left">
+                    <div class="column-header">
+                        <div id="leftModelSelect" class="custom-dropdown"></div>
+                    </div>
+                    <div id="left-result" class="split-messages">
+                        <div class="empty-state">
+                            <p style="font-size: 13px; opacity: 0.5;">Primary Model Intelligence</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="split-divider">
+                    <div class="v-pill" title="Versus Mode">V</div>
+                </div>
+                <div class="split-column right">
+                    <div class="column-header">
+                        <div id="rightModelSelect" class="custom-dropdown"></div>
+                    </div>
+                    <div id="right-result" class="split-messages">
+                        <div class="empty-state">
+                            <p style="font-size: 13px; opacity: 0.5;">Verification Model Intelligence</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
