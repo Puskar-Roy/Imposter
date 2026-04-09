@@ -48,7 +48,8 @@ function createMainWindow(preloadPath) {
             skipTaskbar: true,
             alwaysOnTop: true,
             hasShadow: false,
-            resizable: false,
+            resizable: true,
+            maximizable: true,
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,

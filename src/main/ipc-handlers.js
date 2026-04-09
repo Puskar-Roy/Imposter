@@ -117,7 +117,6 @@ function registerIpcHandlers() {
             } else {
                 mainWindow.setSkipTaskbar(true);
                 mainWindow.setAlwaysOnTop(true, 'screen-saver');
-                mainWindow.setResizable(false);
                 mainWindow.setContentProtection(true);
             }
         } catch (err) {
@@ -165,6 +164,21 @@ function registerIpcHandlers() {
             console.error('[IPC] minimize error:', err);
         }
     });
+    
+    ipcMain.on('maximize-app', () => {
+        try {
+            const mainWindow = getMainWindow();
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                if (mainWindow.isMaximized()) {
+                    mainWindow.unmaximize();
+                } else {
+                    mainWindow.maximize();
+                }
+            }
+        } catch (err) {
+            console.error('[IPC] maximize error:', err);
+        }
+    });
 
     ipcMain.on('close-app', () => {
         try { app.quit(); } catch (err) {
@@ -194,6 +208,14 @@ function registerIpcHandlers() {
     ipcMain.on('close-island-window', () => {
         try { closeIslandWindow(); } catch (err) {
             console.error('[IPC] close-island error:', err);
+        }
+    });
+
+    ipcMain.on('register-window-listeners', (event) => {
+        const win = getMainWindow();
+        if (win && !win.isDestroyed()) {
+            win.on('maximize', () => safeSendToWindow(win, 'window-state', 'maximized'));
+            win.on('unmaximize', () => safeSendToWindow(win, 'window-state', 'normal'));
         }
     });
 

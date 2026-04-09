@@ -105,6 +105,17 @@ async function init() {
         setupEventListeners();
         renderCustomModelsList();
 
+        if (window.electronAPI) {
+            window.electronAPI.registerWindowListeners();
+            window.electronAPI.onWindowState((state) => {
+                if (state === 'maximized') {
+                    document.body.classList.add('is-maximized');
+                } else {
+                    document.body.classList.remove('is-maximized');
+                }
+            });
+        }
+
         loadModels();
     } catch (err) {
         console.error('[INIT] Setup failed:', err);
@@ -525,6 +536,7 @@ function setupEventListeners() {
     if (splitViewBtn) {
         splitViewBtn.addEventListener('click', () => {
             isSplitView = !isSplitView;
+            document.body.classList.toggle('split-mode-active', isSplitView);
             
             const standardThread = $('result-content');
             const splitThread = $('split-content');
@@ -569,6 +581,14 @@ function setupEventListeners() {
             }
         });
     }
+
+    const winMinBtn = $('win-min-btn');
+    const winMaxBtn = $('win-max-btn');
+    const winCloseBtn = $('win-close-btn');
+
+    if (winMinBtn) winMinBtn.addEventListener('click', () => window.electronAPI.minimizeApp());
+    if (winMaxBtn) winMaxBtn.addEventListener('click', () => window.electronAPI.maximizeApp());
+    if (winCloseBtn) winCloseBtn.addEventListener('click', () => window.electronAPI.closeApp());
 
     // Dropdown listeners are handled via callbacks in initCustomDropdowns()
 
