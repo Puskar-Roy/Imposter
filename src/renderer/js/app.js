@@ -124,14 +124,16 @@ async function init() {
 
 function applyAppMode(mode) {
     try {
+        scrubTooltips(mode);
+        
+        // Fortress Mode: Disable mouse resizing in Stealth Mode
         if (window.electronAPI && window.electronAPI.setAppMode) {
             window.electronAPI.setAppMode(mode);
         }
+
         if (windowControls) {
             windowControls.style.display = mode === 'normal' ? 'flex' : 'none';
         }
-
-        scrubTooltips(mode);
         
         // Update dropdown if initialized
         if (settingsAppMode) settingsAppMode.setValue(mode);
@@ -230,22 +232,65 @@ function handleProviderChange(provider) {
     }
 }
 
+let tooltipObserver = null;
+
 function scrubTooltips(mode) {
     try {
-        const elements = document.querySelectorAll('[title], [data-stealth-title]');
-        elements.forEach(el => {
-            if (mode === 'stealth' || (userConfig && userConfig.appMode === 'stealth')) {
-                if (el.hasAttribute('title')) {
-                    el.setAttribute('data-stealth-title', el.getAttribute('title'));
-                    el.removeAttribute('title');
+        const isStealth = mode === 'stealth' || (userConfig && userConfig.appMode === 'stealth');
+        
+        const performScrub = (root = document) => {
+            const elements = root.querySelectorAll ? root.querySelectorAll('[title], [data-tooltip]') : [];
+            elements.forEach(el => {
+                if (isStealth) {
+                    if (el.hasAttribute('title')) {
+                        el.setAttribute('data-tooltip', el.getAttribute('title'));
+                        el.removeAttribute('title');
+                    }
+                } else {
+                    if (el.hasAttribute('data-tooltip')) {
+                        el.setAttribute('title', el.getAttribute('data-tooltip'));
+                        el.removeAttribute('data-tooltip');
+                    }
                 }
-            } else {
-                if (el.hasAttribute('data-stealth-title')) {
-                    el.setAttribute('title', el.getAttribute('data-stealth-title'));
-                    el.removeAttribute('data-stealth-title');
-                }
-            }
-        });
+            });
+        };
+
+        // Initial scrub
+        performScrub();
+
+        // Fortress Mode: Aggressive MutationObserver for dynamic elements
+        if (tooltipObserver) tooltipObserver.disconnect();
+        
+        if (isStealth) {
+            tooltipObserver = new MutationObserver((mutations) => {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) { // Element node
+                            performScrub(node);
+                            // Also check the node itself
+                            if (node.hasAttribute('title')) {
+                                node.setAttribute('data-tooltip', node.getAttribute('title'));
+                                node.removeAttribute('title');
+                            }
+                        }
+                    });
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'title' && isStealth) {
+                        const el = mutation.target;
+                        if (el.hasAttribute('title')) {
+                            el.setAttribute('data-tooltip', el.getAttribute('title'));
+                            el.removeAttribute('title');
+                        }
+                    }
+                });
+            });
+
+            tooltipObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['title']
+            });
+        }
     } catch (err) {
         console.error('[APP] Tooltip scrubbing error:', err);
     }
@@ -682,12 +727,18 @@ function setupEventListeners() {
     const resetAppBtn = $('reset-app-btn');
     if (resetAppBtn) {
         resetAppBtn.addEventListener('click', () => {
-            const confirmed = confirm('CRITICAL WARNING: This will permanently delete ALL configurations, API keys, and models. You will be redirected to the onboarding screen. Proceed?');
-            
-            if (confirmed) {
-                localStorage.clear();
-                window.location.reload();
-            }
+            // Removed native confirm() to prevent OS-level leak.
+            // Action is now immediate but restricted to the Settings -> Profile tab.
+            localStorage.clear();
+            window.location.reload();
+        });
+    }
+
+    const quitAppBtn = $('quit-app-btn');
+    if (quitAppBtn) {
+        quitAppBtn.addEventListener('click', () => {
+            // Removed native confirm() to prevent OS-level leak.
+            window.electronAPI.closeApp();
         });
     }
 
@@ -1015,6 +1066,18 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Fortress Mode: Security Listeners
+    window.addEventListener('contextmenu', (e) => {
+        // Only block if we aren't in a specific dev-mode context if desired,
+        // but for stealth we block it everywhere.
+        e.preventDefault();
+    });
+
+    window.addEventListener('dragstart', (e) => {
+        // Prevent ghost images during drag to stop OS "shadows" from appearing
+        e.preventDefault();
+    });
 }
 
 function appendChatMessage(msg, container) {

@@ -1,5 +1,5 @@
 const { globalShortcut, app, screen, desktopCapturer } = require('electron');
-const { getMainWindow, createSnipperWindow } = require('./window-manager');
+const { getMainWindow, createSnipperWindow, getIslandWindow, getSnipperWindow } = require('./window-manager');
 const path = require('path');
 
 function safeRegister(accelerator, callback) {
@@ -21,8 +21,30 @@ function safeSend(channel, ...args) {
     }
 }
 
+let isAppHidden = false;
+
+function toggleVisibility() {
+    isAppHidden = !isAppHidden;
+    const mainWin = getMainWindow();
+    const islandWin = getIslandWindow();
+    const snipperWin = getSnipperWindow();
+
+    const windows = [mainWin, islandWin, snipperWin];
+
+    windows.forEach(win => {
+        if (win && !win.isDestroyed()) {
+            if (isAppHidden) {
+                win.hide();
+            } else {
+                win.show();
+                if (win === mainWin) win.focus();
+            }
+        }
+    });
+}
+
 function registerShortcuts() {
-    safeRegister('CommandOrControl+Shift+Q', () => app.quit());
+    safeRegister('CommandOrControl+Shift+Q', () => toggleVisibility());
 
     const moveAmount = 15;
     const move = (dx, dy) => {

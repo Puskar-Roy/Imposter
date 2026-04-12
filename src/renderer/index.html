@@ -316,6 +316,17 @@
                                     over other apps. <br><b>Normal Mode</b> acts like a regular desktop app with a
                                     taskbar icon and window controls.</p>
                             </div>
+
+                            <div style="margin-top: 32px; padding: 20px; background: rgba(255, 77, 77, 0.05); border: 1px solid rgba(255, 77, 77, 0.1); border-radius: 16px;">
+                                <h4 style="margin: 0 0 8px 0; color: #ff4d4d; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">
+                                    Terminal Shutdown</h4>
+                                <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 16px 0; opacity: 0.8; line-height: 1.5;">
+                                    Exits the application immediately. Use this if shortcuts are disabled or in Stealth Mode.</p>
+                                <button id="quit-app-btn" class="secondary-btn"
+                                    style="border-color: rgba(255, 77, 77, 0.3); color: #ff4d4d; padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;"
+                                    onmouseover="this.style.background='rgba(255, 77, 77, 0.1)'; this.style.borderColor='#ff4d4d';"
+                                    onmouseout="this.style.background='transparent'; this.style.borderColor='rgba(255, 77, 77, 0.3)';">Quit Imposter</button>
+                            </div>
                         </div>
                         <div id="tab-models" class="tab-pane">
                             <h2 style="margin-bottom: 1.5rem;">Model Management</h2>
@@ -580,8 +591,8 @@
                                         </div>
                                         <div
                                             style="display: flex; justify-content: space-between; align-items: center;">
-                                            <span style="font-size: 13px; color: var(--text-secondary);">Quit
-                                                Application</span>
+                                            <span style="font-size: 13px; color: var(--text-secondary);">Toggle Visibility
+                                                (Boss Key)</span>
                                             <code
                                                 style="background: rgba(255, 77, 77, 0.1); color: #ff4d4d; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;">Ctrl + Shift + Q</code>
                                         </div>

@@ -117,6 +117,7 @@ function registerIpcHandlers() {
             } else {
                 mainWindow.setSkipTaskbar(true);
                 mainWindow.setAlwaysOnTop(true, 'screen-saver');
+                mainWindow.setResizable(false);
                 mainWindow.setContentProtection(true);
             }
         } catch (err) {
