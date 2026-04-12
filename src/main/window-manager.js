@@ -53,7 +53,8 @@ function createMainWindow(preloadPath) {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
-                preload: preloadPath
+                preload: preloadPath,
+                devTools: false
             }
         });
 
@@ -97,7 +98,8 @@ function createIslandWindow(preloadPath) {
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
-                preload: preloadPath
+                preload: preloadPath,
+                devTools: false
             }
         });
 
@@ -138,7 +140,8 @@ function createSnipperWindow(preloadPath, screenSource) {
             enableLargerThanScreen: true,
             webPreferences: {
                 preload: preloadPath,
-                contextIsolation: true
+                contextIsolation: true,
+                devTools: false
             }
         });
 

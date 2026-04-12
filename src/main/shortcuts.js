@@ -100,11 +100,6 @@ function registerShortcuts() {
             console.error('[SHORTCUT] Snipping error:', err);
         }
     });
-
-    safeRegister('CommandOrControl+Shift+D', () => {
-        const win = getMainWindow();
-        if (win && !win.isDestroyed()) win.webContents.toggleDevTools();
-    });
 }
 
 function unregisterShortcuts() {

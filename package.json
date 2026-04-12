@@ -1,7 +1,7 @@
 {
-  "name": "imposter",
+  "name": "system-utility",
   "version": "1.0.0",
-  "description": "Imposter: Beating a Broken System",
+  "description": "System Utility: System performance evaluation tool",
   "author": "Puskar Roy",
   "repository": {
     "type": "git",
@@ -37,8 +37,8 @@
     "prettier": "^3.2.5"
   },
   "build": {
-    "appId": "com.imposter.app",
-    "productName": "Imposter",
+    "appId": "com.system-utility.app",
+    "productName": "System Utility",
     "directories": {
       "output": "dist"
     },

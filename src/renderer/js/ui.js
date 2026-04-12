@@ -73,3 +73,37 @@ export function renderReasoningTrace(details) {
         return '';
     }
 }
+
+export function showNotification(message, type = 'info', duration = 4000) {
+    const container = document.getElementById('notification-container');
+    if (!container) return;
+
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    let icon = '';
+    if (type === 'error') {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff4d4d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+    } else if (type === 'success') {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    } else {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+    }
+
+    notification.innerHTML = `
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-text">${message}</div>
+    `;
+
+    container.appendChild(notification);
+
+    // Auto-remove
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                container.removeChild(notification);
+            }
+        }, 300);
+    }, duration);
+}

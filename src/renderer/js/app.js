@@ -9,6 +9,16 @@ window.onerror = (message, source, lineno, colno, error) => {
     return true; 
 };
 
+// Global Log Scrubber
+const isDev = false; // Set to true for development
+if (!isDev) {
+    console.log = () => {};
+    console.debug = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+}
+
 window.onunhandledrejection = (event) => {
     event.preventDefault();
 };
@@ -648,7 +658,7 @@ function setupEventListeners() {
     async function fetchGeminiModelsForForm() {
         const key = newModelKey ? newModelKey.value.trim() : '';
         if (!key || !newGeminiModelSelect) {
-            alert('Please enter your Gemini API key first.');
+            UI.showNotification('Please enter your Gemini API key first.', 'error');
             return;
         }
         
@@ -770,7 +780,7 @@ function setupEventListeners() {
                         newGeminiModelSelect.setOptions([]);
                     }
                 } else if (!modelId && provider === 'gemini') {
-                    alert('Please enter a valid API key and select a model from the list.');
+                    UI.showNotification('Please enter a valid API key and select a model from the list.', 'error');
                 }
             } catch (err) {
                 console.error('[APP] Add model error:', err);
@@ -1152,7 +1162,7 @@ async function handleSplitSearch(text) {
     const rightModelSelection = rightModelSelect.getValue();
     
     if (!leftModelSelection || !rightModelSelection) {
-        alert('Please select both models for Split-View comparison.');
+        UI.showNotification('Please select both models for Split-View comparison.', 'error');
         return;
     }
 

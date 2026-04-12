@@ -46,3 +46,72 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
+
+/* Custom HUD Notifications */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.notification {
+    background: rgba(30, 30, 30, 0.95);
+    color: var(--text-primary);
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideDownIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    pointer-events: auto;
+    max-width: 400px;
+    width: max-content;
+}
+
+.notification.error {
+    border-left: 4px solid #ff4d4d;
+}
+
+.notification.success {
+    border-left: 4px solid var(--accent-color);
+}
+
+.notification-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@keyframes slideDownIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.notification.fade-out {
+    animation: fadeOut 0.3s forwards;
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
