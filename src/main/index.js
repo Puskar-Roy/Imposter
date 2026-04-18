@@ -2,6 +2,14 @@ const { app, session, BrowserWindow } = require('electron');
 const path = require('path');
 require('dotenv').config();
 
+if (app.isPackaged) {
+    console.log = () => {};
+    console.debug = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+}
+
 const { createMainWindow, getMainWindow } = require('./window-manager');
 const { registerShortcuts, unregisterShortcuts } = require('./shortcuts');
 const { registerIpcHandlers } = require('./ipc-handlers');

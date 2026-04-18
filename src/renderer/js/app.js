@@ -9,6 +9,16 @@ window.onerror = (message, source, lineno, colno, error) => {
     return true; 
 };
 
+// Global Log Scrubber
+const isDev = false; // Set to true for development
+if (!isDev) {
+    console.log = () => {};
+    console.debug = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+}
+
 window.onunhandledrejection = (event) => {
     event.preventDefault();
 };
@@ -31,6 +41,8 @@ let settingsPersona;
 let settingsAppMode;
 let newModelProvider;
 let newGeminiModelSelect;
+let leftModelSelect;
+let rightModelSelect;
 
 // Overlays
 const onboardingOverlay = $('onboarding-overlay');
@@ -78,10 +90,15 @@ let customModels = [];
 let editingIndex = -1; // -1 means no model is currently being edited
 let currentRawResponse = '';
 let isRecording = false;
+let isSplitView = false;
 
 // Context Memory
 let conversationHistory = [];
+let leftHistory = [];
+let rightHistory = [];
 let emptyStateHtml = '';
+let leftEmptyStateHtml = '';
+let rightEmptyStateHtml = '';
 
 async function init() {
     try {
@@ -89,12 +106,25 @@ async function init() {
         loadAppConfig();
 
         emptyStateHtml = resultContent ? resultContent.innerHTML : '';
+        leftEmptyStateHtml = $('left-result') ? $('left-result').innerHTML : '';
+        rightEmptyStateHtml = $('right-result') ? $('right-result').innerHTML : '';
         customModels = Config.getSavedModels();
 
         applyAppMode(userConfig.appMode || 'stealth');
         initCustomDropdowns();
         setupEventListeners();
         renderCustomModelsList();
+
+        if (window.electronAPI) {
+            window.electronAPI.registerWindowListeners();
+            window.electronAPI.onWindowState((state) => {
+                if (state === 'maximized') {
+                    document.body.classList.add('is-maximized');
+                } else {
+                    document.body.classList.remove('is-maximized');
+                }
+            });
+        }
 
         loadModels();
     } catch (err) {
@@ -104,14 +134,16 @@ async function init() {
 
 function applyAppMode(mode) {
     try {
+        scrubTooltips(mode);
+        
+        // Fortress Mode: Disable mouse resizing in Stealth Mode
         if (window.electronAPI && window.electronAPI.setAppMode) {
             window.electronAPI.setAppMode(mode);
         }
+
         if (windowControls) {
             windowControls.style.display = mode === 'normal' ? 'flex' : 'none';
         }
-
-        scrubTooltips(mode);
         
         // Update dropdown if initialized
         if (settingsAppMode) settingsAppMode.setValue(mode);
@@ -171,6 +203,17 @@ function initCustomDropdowns() {
         placeholder: 'Awaiting API Verification...',
         options: []
     });
+
+    // 6. Split-View Model Selectors
+    leftModelSelect = new CustomDropdown('leftModelSelect', {
+        placeholder: 'Select Primary...',
+        onChange: () => {}
+    });
+
+    rightModelSelect = new CustomDropdown('rightModelSelect', {
+        placeholder: 'Select Verification...',
+        onChange: () => {}
+    });
 }
 
 function handleProviderChange(provider) {
@@ -199,22 +242,65 @@ function handleProviderChange(provider) {
     }
 }
 
+let tooltipObserver = null;
+
 function scrubTooltips(mode) {
     try {
-        const elements = document.querySelectorAll('[title], [data-stealth-title]');
-        elements.forEach(el => {
-            if (mode === 'stealth' || (userConfig && userConfig.appMode === 'stealth')) {
-                if (el.hasAttribute('title')) {
-                    el.setAttribute('data-stealth-title', el.getAttribute('title'));
-                    el.removeAttribute('title');
+        const isStealth = mode === 'stealth' || (userConfig && userConfig.appMode === 'stealth');
+        
+        const performScrub = (root = document) => {
+            const elements = root.querySelectorAll ? root.querySelectorAll('[title], [data-tooltip]') : [];
+            elements.forEach(el => {
+                if (isStealth) {
+                    if (el.hasAttribute('title')) {
+                        el.setAttribute('data-tooltip', el.getAttribute('title'));
+                        el.removeAttribute('title');
+                    }
+                } else {
+                    if (el.hasAttribute('data-tooltip')) {
+                        el.setAttribute('title', el.getAttribute('data-tooltip'));
+                        el.removeAttribute('data-tooltip');
+                    }
                 }
-            } else {
-                if (el.hasAttribute('data-stealth-title')) {
-                    el.setAttribute('title', el.getAttribute('data-stealth-title'));
-                    el.removeAttribute('data-stealth-title');
-                }
-            }
-        });
+            });
+        };
+
+        // Initial scrub
+        performScrub();
+
+        // Fortress Mode: Aggressive MutationObserver for dynamic elements
+        if (tooltipObserver) tooltipObserver.disconnect();
+        
+        if (isStealth) {
+            tooltipObserver = new MutationObserver((mutations) => {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) { // Element node
+                            performScrub(node);
+                            // Also check the node itself
+                            if (node.hasAttribute('title')) {
+                                node.setAttribute('data-tooltip', node.getAttribute('title'));
+                                node.removeAttribute('title');
+                            }
+                        }
+                    });
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'title' && isStealth) {
+                        const el = mutation.target;
+                        if (el.hasAttribute('title')) {
+                            el.setAttribute('data-tooltip', el.getAttribute('title'));
+                            el.removeAttribute('title');
+                        }
+                    }
+                });
+            });
+
+            tooltipObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['title']
+            });
+        }
     } catch (err) {
         console.error('[APP] Tooltip scrubbing error:', err);
     }
@@ -277,6 +363,20 @@ async function loadModels() {
                 if (statusText) statusText.textContent = 'Ready';
             } else {
                 if (statusText) statusText.textContent = 'No Models';
+            }
+
+            // Sync Split-View dropdowns
+            if (leftModelSelect) leftModelSelect.setOptions(modelOptions);
+            if (rightModelSelect) rightModelSelect.setOptions(modelOptions);
+            
+            // Set defaults if empty
+            if (modelOptions.length > 0) {
+                if (leftModelSelect && !leftModelSelect.getValue()) leftModelSelect.setValue(modelOptions[0].value);
+                if (rightModelSelect && !rightModelSelect.getValue() && modelOptions.length > 1) {
+                    rightModelSelect.setValue(modelOptions[1].value);
+                } else if (rightModelSelect && !rightModelSelect.getValue()) {
+                    rightModelSelect.setValue(modelOptions[0].value);
+                }
             }
         }
     } catch (err) {
@@ -487,6 +587,64 @@ function renderCustomModelsList() {
 function setupEventListeners() {
     if (promptInput) promptInput.addEventListener('input', () => UI.autoGrowTextarea(promptInput));
 
+    const splitViewBtn = $('split-view-btn');
+    if (splitViewBtn) {
+        splitViewBtn.addEventListener('click', () => {
+            isSplitView = !isSplitView;
+            document.body.classList.toggle('split-mode-active', isSplitView);
+            
+            const standardThread = $('result-content');
+            const splitThread = $('split-content');
+            
+            if (isSplitView) {
+                if (standardThread) standardThread.style.display = 'none';
+                if (splitThread) splitThread.classList.add('active');
+                splitViewBtn.classList.add('active');
+                splitViewBtn.style.color = 'var(--accent-color)';
+                splitViewBtn.style.opacity = '1';
+                
+                // Header Title Switch
+                const selectorWrapper = document.querySelector('.model-selector-wrapper');
+                if (selectorWrapper) {
+                    selectorWrapper.style.display = 'none';
+                    if (!document.getElementById('split-title')) {
+                        const title = document.createElement('div');
+                        title.id = 'split-title';
+                        title.className = 'split-title-header';
+                        title.textContent = 'Multi-Model Compare';
+                        selectorWrapper.parentNode.insertBefore(title, selectorWrapper);
+                    } else {
+                        document.getElementById('split-title').style.display = 'flex';
+                    }
+                }
+
+                // If switching to split view and we have models, set defaults if not set
+                if (modelSelect && !leftModelSelect.getValue()) {
+                    leftModelSelect.setValue(modelSelect.getValue());
+                }
+            } else {
+                if (standardThread) standardThread.style.display = 'block';
+                if (splitThread) splitThread.classList.remove('active');
+                splitViewBtn.classList.remove('active');
+                splitViewBtn.style.color = '';
+                splitViewBtn.style.opacity = '0.6';
+                
+                const selectorWrapper = document.querySelector('.model-selector-wrapper');
+                const splitTitle = document.getElementById('split-title');
+                if (selectorWrapper) selectorWrapper.style.display = 'flex';
+                if (splitTitle) splitTitle.style.display = 'none';
+            }
+        });
+    }
+
+    const winMinBtn = $('win-min-btn');
+    const winMaxBtn = $('win-max-btn');
+    const winCloseBtn = $('win-close-btn');
+
+    if (winMinBtn) winMinBtn.addEventListener('click', () => window.electronAPI.minimizeApp());
+    if (winMaxBtn) winMaxBtn.addEventListener('click', () => window.electronAPI.maximizeApp());
+    if (winCloseBtn) winCloseBtn.addEventListener('click', () => window.electronAPI.closeApp());
+
     // Dropdown listeners are handled via callbacks in initCustomDropdowns()
 
     // Manual fetch/verify for Gemini
@@ -500,7 +658,7 @@ function setupEventListeners() {
     async function fetchGeminiModelsForForm() {
         const key = newModelKey ? newModelKey.value.trim() : '';
         if (!key || !newGeminiModelSelect) {
-            alert('Please enter your Gemini API key first.');
+            UI.showNotification('Please enter your Gemini API key first.', 'error');
             return;
         }
         
@@ -579,12 +737,18 @@ function setupEventListeners() {
     const resetAppBtn = $('reset-app-btn');
     if (resetAppBtn) {
         resetAppBtn.addEventListener('click', () => {
-            const confirmed = confirm('CRITICAL WARNING: This will permanently delete ALL configurations, API keys, and models. You will be redirected to the onboarding screen. Proceed?');
-            
-            if (confirmed) {
-                localStorage.clear();
-                window.location.reload();
-            }
+            // Removed native confirm() to prevent OS-level leak.
+            // Action is now immediate but restricted to the Settings -> Profile tab.
+            localStorage.clear();
+            window.location.reload();
+        });
+    }
+
+    const quitAppBtn = $('quit-app-btn');
+    if (quitAppBtn) {
+        quitAppBtn.addEventListener('click', () => {
+            // Removed native confirm() to prevent OS-level leak.
+            window.electronAPI.closeApp();
         });
     }
 
@@ -616,7 +780,7 @@ function setupEventListeners() {
                         newGeminiModelSelect.setOptions([]);
                     }
                 } else if (!modelId && provider === 'gemini') {
-                    alert('Please enter a valid API key and select a model from the list.');
+                    UI.showNotification('Please enter a valid API key and select a model from the list.', 'error');
                 }
             } catch (err) {
                 console.error('[APP] Add model error:', err);
@@ -897,23 +1061,49 @@ function setupEventListeners() {
         clearChatBtn.addEventListener('click', () => {
             try {
                 conversationHistory = [];
+                leftHistory = [];
+                rightHistory = [];
                 if (resultContent) {
                     resultContent.innerHTML = emptyStateHtml;
                     UI.updateGreeting(resultContent.querySelector('#greeting-container'), userConfig.name);
                 }
+                const leftRes = $('left-result');
+                const rightRes = $('right-result');
+                if (leftRes) leftRes.innerHTML = leftEmptyStateHtml;
+                if (rightRes) rightRes.innerHTML = rightEmptyStateHtml;
             } catch (err) {
                 console.error('[APP] Clear chat error:', err);
             }
         });
     }
+
+    // Fortress Mode: Security Listeners
+    window.addEventListener('contextmenu', (e) => {
+        // Only block if we aren't in a specific dev-mode context if desired,
+        // but for stealth we block it everywhere.
+        e.preventDefault();
+    });
+
+    window.addEventListener('dragstart', (e) => {
+        // Prevent ghost images during drag to stop OS "shadows" from appearing
+        e.preventDefault();
+    });
 }
 
-function appendChatMessage(msg) {
-    if (!msg || msg.role === 'system' || !resultContent) return null;
+function appendChatMessage(msg, container) {
+    const target = container || resultContent;
+    if (!msg || msg.role === 'system' || !target) return null;
 
     try {
-        if (conversationHistory.length === 1 && conversationHistory[0] === msg) {
-            resultContent.innerHTML = '';
+        const isSplit = target !== resultContent;
+        
+        // Clear empty state if this is the first message
+        if (isSplit) {
+            if (target.querySelector('.empty-state')) target.innerHTML = '';
+        } else {
+            if (conversationHistory.length === 1 && conversationHistory[0] === msg) {
+                target.innerHTML = '';
+            }
         }
 
         const bubble = document.createElement('div');
@@ -922,8 +1112,20 @@ function appendChatMessage(msg) {
             bubble.textContent = msg.content || '';
         } else {
             bubble.className = 'chat-message-ai markdown-body';
+            
             let htmlContent = parseMarkdown(msg.content || '');
             if (msg.reasoningHtml) htmlContent = msg.reasoningHtml + htmlContent;
+
+            if (isSplit && msg.modelLabel) {
+                let badgeHtml = '';
+                if (msg.duration) {
+                    badgeHtml = ` <span class="speed-badge">${msg.duration}s</span>`;
+                    if (msg.isFaster) {
+                        badgeHtml += ` <span class="speed-badge faster-badge">⚡ FASTEST</span>`;
+                    }
+                }
+                htmlContent = `<div class="model-response-label">Response from ${msg.modelLabel}${badgeHtml}</div>` + htmlContent;
+            }
 
             if (msg.isError) {
                 UI.showError(bubble, { message: msg.content });
@@ -931,7 +1133,7 @@ function appendChatMessage(msg) {
                 bubble.innerHTML = htmlContent;
             }
         }
-        resultContent.appendChild(bubble);
+        target.appendChild(bubble);
         return bubble;
     } catch (err) {
         console.error('[APP] Chat message render error:', err);
@@ -941,17 +1143,109 @@ function appendChatMessage(msg) {
 
 async function performSearch(isF10 = false) {
     if (!searchBtn || searchBtn.disabled) return;
-    if (!promptInput || !modelSelect) return;
+    if (!promptInput) return;
 
     const text = promptInput.value.trim();
-    const modelSelection = modelSelect.getValue();
-    if (!text || !modelSelection) return;
+    if (!text) return;
 
-    const parts = modelSelection.split('|');
-    const provider = parts[0] || '';
-    const modelId = parts[1] || '';
-    const baseUrl = parts[2] || '';
-    const apiKey = parts[3] || '';
+    if (isSplitView) {
+        await handleSplitSearch(text);
+    } else {
+        await handleStandardSearch(text, isF10);
+    }
+}
+
+async function handleSplitSearch(text) {
+    if (!leftModelSelect || !rightModelSelect) return;
+
+    const leftModelSelection = leftModelSelect.getValue();
+    const rightModelSelection = rightModelSelect.getValue();
+    
+    if (!leftModelSelection || !rightModelSelection) {
+        UI.showNotification('Please select both models for Split-View comparison.', 'error');
+        return;
+    }
+
+    promptInput.value = '';
+    promptInput.style.height = 'auto';
+    searchBtn.disabled = true;
+
+    const leftContainer = $('left-result');
+    const rightContainer = $('right-result');
+
+    const userMsg = { role: 'user', content: text };
+    leftHistory.push(userMsg);
+    rightHistory.push(userMsg);
+
+    appendChatMessage(userMsg, leftContainer);
+    appendChatMessage(userMsg, rightContainer);
+
+    // Show loading on both
+    const leftLoading = document.createElement('div');
+    leftLoading.className = 'chat-message-ai';
+    UI.showLoading(leftLoading);
+    leftContainer.appendChild(leftLoading);
+
+    const rightLoading = document.createElement('div');
+    rightLoading.className = 'chat-message-ai';
+    UI.showLoading(rightLoading);
+    rightContainer.appendChild(rightLoading);
+
+    const scroll = () => {
+        leftContainer.scrollTop = leftContainer.scrollHeight;
+        rightContainer.scrollTop = rightContainer.scrollHeight;
+    };
+    setTimeout(scroll, 10);
+
+    let firstFinishedId = null;
+    const startTime = performance.now();
+
+    const processModelSide = async (selection, history, container, loadingEl) => {
+        try {
+            const res = await callModelApi(selection, history);
+            const duration = ((performance.now() - startTime) / 1000).toFixed(1);
+
+            if (!firstFinishedId) {
+                firstFinishedId = selection;
+            }
+
+            if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+
+            const aiMsg = {
+                role: 'assistant',
+                content: res.response,
+                reasoningHtml: res.reasoningHtml,
+                modelLabel: res.modelLabel,
+                duration: duration,
+                isFaster: firstFinishedId === selection
+            };
+            history.push(aiMsg);
+            appendChatMessage(aiMsg, container);
+            container.scrollTop = container.scrollHeight;
+        } catch (err) {
+            console.error(`[SPLIT] Error on side:`, err);
+            if (loadingEl.parentNode) loadingEl.parentNode.removeChild(loadingEl);
+            const errorMsg = { role: 'assistant', content: err.message, isError: true };
+            appendChatMessage(errorMsg, container);
+        }
+    };
+
+    try {
+        await Promise.all([
+            processModelSide(leftModelSelection, leftHistory, leftContainer, leftLoading),
+            processModelSide(rightModelSelection, rightHistory, rightContainer, rightLoading)
+        ]);
+    } catch (err) {
+        console.error('[SPLIT] Parallel processing error:', err);
+    } finally {
+        searchBtn.disabled = false;
+        setTimeout(scroll, 100);
+    }
+}
+
+async function handleStandardSearch(text, isF10 = false) {
+    const modelSelection = modelSelect.getValue();
+    if (!modelSelection) return;
 
     promptInput.value = '';
     promptInput.style.height = 'auto';
@@ -964,7 +1258,9 @@ async function performSearch(isF10 = false) {
         if (conversationHistory.length === 0) {
             if (resultContent) resultContent.innerHTML = '';
             const fullSystemPrompt = Config.buildSystemPrompt(userConfig);
-            if (fullSystemPrompt && provider === 'ollama') {
+            // Ollama specific system prompt handling
+            const parts = modelSelection.split('|');
+            if (fullSystemPrompt && parts[0] === 'ollama') {
                 conversationHistory.push({ role: 'system', content: fullSystemPrompt });
             }
         }
@@ -978,39 +1274,9 @@ async function performSearch(isF10 = false) {
         UI.showLoading(loadingBubble);
         if (resultContent) resultContent.appendChild(loadingBubble);
         setTimeout(() => { if (chatStage) chatStage.scrollTop = chatStage.scrollHeight; }, 10);
-        if (chatStage) chatStage.scrollTop = chatStage.scrollHeight;
 
-        let reasoningHtml = '';
-
-        if (provider === 'ollama') {
-            const responseData = await API.generateOllamaResponse(baseUrl, {
-                model: modelId,
-                messages: conversationHistory,
-                stream: false
-            });
-            currentRawResponse = responseData?.message?.content || responseData?.response || '';
-        } else if (provider === 'openrouter') {
-            const orMessages = conversationHistory.filter(m => m.role !== 'system');
-            const fullSystemPrompt = Config.buildSystemPrompt(userConfig);
-            const data = await API.generateOpenRouterResponse(apiKey, {
-                model: modelId,
-                messages: orMessages,
-                system_prompt: fullSystemPrompt || undefined,
-                reasoning: { enabled: true }
-            });
-            if (data && data.choices && data.choices[0]) {
-                const msg = data.choices[0].message;
-                currentRawResponse = msg ? (msg.content || '') : '';
-                if (msg && msg.reasoning_details) reasoningHtml = UI.renderReasoningTrace(msg.reasoning_details);
-            }
-        } else if (provider === 'gemini') {
-            const fullSystemPrompt = Config.buildSystemPrompt(userConfig);
-            const data = await API.generateGeminiResponse(apiKey, modelId, conversationHistory, fullSystemPrompt);
-            if (data && data.candidates && data.candidates[0] && data.candidates[0].content) {
-                const msg = data.candidates[0].content;
-                currentRawResponse = (msg.parts && msg.parts[0]) ? msg.parts[0].text : '';
-            }
-        }
+        const { response, reasoningHtml } = await callModelApi(modelSelection, conversationHistory);
+        currentRawResponse = response;
 
         const aiMsg = {
             role: 'assistant',
@@ -1030,18 +1296,10 @@ async function performSearch(isF10 = false) {
 
     } catch (err) {
         console.error('[APP] Search error:', err);
-        const errorMsg = {
-            role: 'assistant',
-            content: err.message || 'An unexpected error occurred',
-            isError: true
-        };
+        const errorMsg = { role: 'assistant', content: err.message || 'An unexpected error occurred', isError: true };
         conversationHistory.push(errorMsg);
-
-        if (loadingBubble && loadingBubble.parentNode) {
-            loadingBubble.parentNode.removeChild(loadingBubble);
-        }
+        if (loadingBubble && loadingBubble.parentNode) loadingBubble.parentNode.removeChild(loadingBubble);
         appendChatMessage(errorMsg);
-
         if (isF10) {
             try { window.electronAPI.sendAiResponseToIsland('Error: Could not reach AI'); } catch (_) { }
         }
@@ -1051,6 +1309,49 @@ async function performSearch(isF10 = false) {
             if (chatStage) chatStage.scrollTo({ top: chatStage.scrollHeight, behavior: 'smooth' });
         }, 50);
     }
+}
+
+async function callModelApi(selection, history) {
+    const parts = selection.split('|');
+    const provider = parts[0] || '';
+    const modelId = parts[1] || '';
+    const baseUrl = parts[2] || '';
+    const apiKey = parts[3] || '';
+    
+    let response = '';
+    let reasoningHtml = '';
+    
+    const fullSystemPrompt = Config.buildSystemPrompt(userConfig);
+
+    if (provider === 'ollama') {
+        const data = await API.generateOllamaResponse(baseUrl, {
+            model: modelId,
+            messages: history,
+            stream: false
+        });
+        response = data?.message?.content || data?.response || '';
+    } else if (provider === 'openrouter') {
+        const orMessages = history.filter(m => m.role !== 'system');
+        const data = await API.generateOpenRouterResponse(apiKey, {
+            model: modelId,
+            messages: orMessages,
+            system_prompt: fullSystemPrompt || undefined,
+            reasoning: { enabled: true }
+        });
+        if (data && data.choices && data.choices[0]) {
+            const msg = data.choices[0].message;
+            response = msg ? (msg.content || '') : '';
+            if (msg && msg.reasoning_details) reasoningHtml = UI.renderReasoningTrace(msg.reasoning_details);
+        }
+    } else if (provider === 'gemini') {
+        const data = await API.generateGeminiResponse(apiKey, modelId, history, fullSystemPrompt);
+        if (data && data.candidates && data.candidates[0] && data.candidates[0].content) {
+            const msg = data.candidates[0].content;
+            response = (msg.parts && msg.parts[0]) ? msg.parts[0].text : '';
+        }
+    }
+    
+    return { response, reasoningHtml, modelLabel: modelId };
 }
 
 init();

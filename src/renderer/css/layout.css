@@ -4,10 +4,24 @@
     height: 100%;
     width: 100%;
     max-width: 900px;
+    width: 95vw;
     background-color: var(--bg-color);
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.split-mode-active .app-container {
+    max-width: 1400px;
+}
+
+body.is-maximized .app-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: 100vh !important;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .app-header {
@@ -78,7 +92,8 @@
     transition: all 0.2s;
 }
 
-.win-btn.win-min:hover {
+.win-btn.win-min:hover,
+.win-btn.win-max:hover {
     background-color: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
 }

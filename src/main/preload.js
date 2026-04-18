@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // Basic App Controls
     minimizeApp: () => ipcRenderer.send('minimize-app'),
+    maximizeApp: () => ipcRenderer.send('maximize-app'),
     closeApp: () => ipcRenderer.send('close-app'),
     restartApp: () => ipcRenderer.send('restart-app'),
     setAppMode: (mode) => ipcRenderer.send('set-app-mode', mode),
@@ -38,5 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Window Management
     openIslandWindow: () => ipcRenderer.send('open-island-window'),
-    closeIslandWindow: () => ipcRenderer.send('close-island-window')
+    closeIslandWindow: () => ipcRenderer.send('close-island-window'),
+    registerWindowListeners: () => ipcRenderer.send('register-window-listeners'),
+    onWindowState: (callback) => ipcRenderer.on('window-state', (event, state) => callback(state))
 });
