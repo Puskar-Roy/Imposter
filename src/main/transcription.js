@@ -1,8 +1,11 @@
 const { WebSocket } = require('ws');
 const { getMainWindow, getIslandWindow } = require('./window-manager');
+const { spawn, execSync } = require('child_process');
+const kdeManager = require('./kde-manager');
 
 let assemblySocket = null;
 let isConnecting = false;
+let nativeAudioProcess = null;
 const SAMPLE_RATE = 16000;
 
 function safeSendStatus(status, error) {
@@ -25,7 +28,7 @@ function startTranscription(apiKey) {
     isConnecting = true;
 
     try {
-        const url = `wss://streaming.assemblyai.com/v3/ws?sample_rate=${SAMPLE_RATE}&speech_model=u3-rt-pro`;
+        const url = `wss://streaming.assemblyai.com/v3/ws?sample_rate=${SAMPLE_RATE}&encoding=pcm_s16le&speech_model=u3-rt-pro`;
         assemblySocket = new WebSocket(url, { headers: { Authorization: apiKey } });
 
         const connectionTimeout = setTimeout(() => {
@@ -42,6 +45,86 @@ function startTranscription(apiKey) {
             clearTimeout(connectionTimeout);
             isConnecting = false;
             safeSendStatus('connected');
+
+            // If we are on KDE/Linux, start the native PipeWire capture now
+            if (kdeManager.isKdePlasma()) {
+                console.log('[TRANSCRIPTION] Starting native Linux audio capture (parec)');
+                try {
+                    // Verify parec is installed
+                    try {
+                        execSync('which parec', { encoding: 'utf-8' });
+                    } catch (_) {
+                        const msg = 'Voice capture requires "parec" (pulseaudio-utils). Install it:\n' +
+                            '  Arch/EndeavourOS: sudo pacman -S libpulse\n' +
+                            '  Ubuntu/Debian:    sudo apt install pulseaudio-utils\n' +
+                            '  Fedora:           sudo dnf install pulseaudio-utils';
+                        console.error(`[TRANSCRIPTION] ${msg}`);
+                        safeSendStatus('error', 'Missing dependency: parec. Check terminal for install instructions.');
+                        return;
+                    }
+                    // Dynamically get the exact monitor name of the default sink
+                    let targetSink = '@DEFAULT_SINK@.monitor';
+                    try {
+                        const defaultSink = execSync('pactl get-default-sink', { encoding: 'utf-8' }).trim();
+                        if (defaultSink) {
+                            targetSink = `${defaultSink}.monitor`;
+                            console.log(`[TRANSCRIPTION] Resolved target sink: ${targetSink}`);
+                        }
+                    } catch (e) {
+                        console.warn('[TRANSCRIPTION] Could not dynamically resolve default sink.', e.message);
+                    }
+
+                    // Use parec for guaranteed raw PCM output (no WAV headers)
+                    nativeAudioProcess = spawn('parec', [
+                        '--rate=16000',
+                        '--channels=1',
+                        '--format=s16le',
+                        '-d', targetSink
+                    ]);
+
+                    let audioBuffer = Buffer.alloc(0);
+                    // 100ms chunks: 16000Hz * 1ch * 2bytes * 0.1s = 3200 bytes
+                    const CHUNK_SIZE = 3200;
+                    // Software gain — monitor sinks capture at very low amplitude
+                    const AUDIO_GAIN = 10;
+
+                    function amplifyPCM(buffer) {
+                        const amplified = Buffer.alloc(buffer.length);
+                        for (let i = 0; i < buffer.length - 1; i += 2) {
+                            let sample = buffer.readInt16LE(i);
+                            sample = Math.max(-32768, Math.min(32767, sample * AUDIO_GAIN));
+                            amplified.writeInt16LE(sample, i);
+                        }
+                        return amplified;
+                    }
+
+                    nativeAudioProcess.stdout.on('data', (data) => {
+                        audioBuffer = Buffer.concat([audioBuffer, data]);
+
+                        // Drain buffer in proper-sized chunks (while, not if!)
+                        while (audioBuffer.length >= CHUNK_SIZE) {
+                            const chunk = audioBuffer.subarray(0, CHUNK_SIZE);
+                            audioBuffer = audioBuffer.subarray(CHUNK_SIZE);
+
+                            if (assemblySocket && assemblySocket.readyState === WebSocket.OPEN) {
+                                const boosted = amplifyPCM(chunk);
+                                assemblySocket.send(boosted);
+                            }
+                        }
+                    });
+
+                    nativeAudioProcess.on('error', (err) => {
+                        console.error('[TRANSCRIPTION] parec error:', err.message);
+                    });
+
+                    nativeAudioProcess.on('close', (code) => {
+                        console.log(`[TRANSCRIPTION] parec exited with code ${code}`);
+                        nativeAudioProcess = null;
+                    });
+                } catch (err) {
+                    console.error('[TRANSCRIPTION] Failed to spawn parec:', err);
+                }
+            }
         });
 
         assemblySocket.on('message', (message) => {
@@ -50,6 +133,10 @@ function startTranscription(apiKey) {
                 
                 if (data.error) {
                     console.error('[TRANSCRIPTION] Server error:', data.error);
+                }
+
+                if (data.type === 'Turn') {
+                    console.log(`[TRANSCRIPTION] Received Turn: "${data.transcript}" (end_of_turn: ${data.end_of_turn})`);
                 }
 
                 const mainWindow = getMainWindow();
@@ -89,6 +176,15 @@ function startTranscription(apiKey) {
 
 function stopTranscription() {
     isConnecting = false;
+
+    // Kill native audio process if it exists
+    if (nativeAudioProcess) {
+        try {
+            nativeAudioProcess.kill('SIGTERM');
+        } catch (_) {}
+        nativeAudioProcess = null;
+    }
+
     if (assemblySocket) {
         try {
             if (assemblySocket.readyState === WebSocket.OPEN) {

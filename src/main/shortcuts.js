@@ -1,6 +1,9 @@
 const { globalShortcut, app, screen, desktopCapturer } = require('electron');
 const { getMainWindow, createSnipperWindow } = require('./window-manager');
 const path = require('path');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const kdeManager = require('./kde-manager');
 
 function safeRegister(accelerator, callback) {
     try {
@@ -65,13 +68,35 @@ function registerShortcuts() {
             const { width, height } = primaryDisplay.bounds;
             await new Promise(r => setTimeout(r, 100));
 
-            const sources = await desktopCapturer.getSources({ 
-                types: ['screen'], 
-                thumbnailSize: { width: Math.max(width, 1920), height: Math.max(height, 1080) } 
-            });
-            
-            if (sources && sources.length > 0) {
-                const screenSource = sources[0].thumbnail.toDataURL();
+            let screenSource = null;
+
+            if (kdeManager.isKdePlasma()) {
+                // On KDE/Wayland, bypass desktopCapturer and the portal popup by using spectacle
+                const tmpPath = '/tmp/imposter_snip.png';
+                try {
+                    execSync(`spectacle -b -n -o ${tmpPath}`, { stdio: 'ignore' });
+                    const imgData = fs.readFileSync(tmpPath);
+                    screenSource = `data:image/png;base64,${imgData.toString('base64')}`;
+                    // Clean up the temporary file silently
+                    fs.unlink(tmpPath, () => {});
+                } catch (err) {
+                    console.error('[SHORTCUT] Spectacle capture failed, falling back to desktopCapturer:', err.message);
+                }
+            }
+
+            // Fallback to standard desktopCapturer for Windows/Mac (or if spectacle failed)
+            if (!screenSource) {
+                const sources = await desktopCapturer.getSources({ 
+                    types: ['screen'], 
+                    thumbnailSize: { width: Math.max(width, 1920), height: Math.max(height, 1080) } 
+                });
+                
+                if (sources && sources.length > 0) {
+                    screenSource = sources[0].thumbnail.toDataURL();
+                }
+            }
+
+            if (screenSource) {
                 createSnipperWindow(path.join(__dirname, 'preload_snipper.js'), screenSource);
             }
         } catch (err) {

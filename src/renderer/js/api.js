@@ -13,6 +13,27 @@ export async function fetchModels() {
     return null;
 }
 
+function extractErrorMessage(result, providerName) {
+    if (!result) return 'Unknown error occurred';
+    // If it's a provider JSON error object (e.g. Gemini)
+    if (typeof result.error === 'object' && result.error.message) return result.error.message;
+    // If it's an IPC handler or standard fetch error string
+    if (typeof result.message === 'string' && result.message.trim() !== '') {
+        try {
+            // Sometimes the message is raw HTML from a 503 page, so let's try parsing it as JSON first
+            const parsed = JSON.parse(result.message);
+            if (parsed.error && parsed.error.message) return parsed.error.message;
+        } catch (e) {
+            // It's not JSON, so it's probably raw HTML or plain text. If it's long HTML, truncate it.
+            if (result.message.includes('<html') || result.message.length > 150) {
+                return `${providerName} is currently unavailable (Status: ${result.status}). Please try again in a moment.`;
+            }
+            return result.message;
+        }
+    }
+    return `${providerName} returned an error (status: ${result.status || 'unknown'})`;
+}
+
 export async function generateOllamaResponse(baseUrl, payload) {
     if (!baseUrl) throw new Error('No base URL configured for Ollama');
 
@@ -24,7 +45,7 @@ export async function generateOllamaResponse(baseUrl, payload) {
     });
 
     if (result && result.error) {
-        throw new Error(result.message || `Ollama returned an error (status: ${result.status || 'unknown'})`);
+        throw new Error(extractErrorMessage(result, 'Ollama'));
     }
 
     return result || {};
@@ -47,7 +68,7 @@ export async function generateOpenRouterResponse(apiKey, payload) {
     });
 
     if (result && result.error) {
-        throw new Error(result.message || `OpenRouter returned an error (status: ${result.status || 'unknown'})`);
+        throw new Error(extractErrorMessage(result, 'OpenRouter'));
     }
 
     return result || {};
@@ -104,7 +125,7 @@ export async function generateGeminiResponse(apiKey, modelId, conversationHistor
     });
 
     if (result && result.error) {
-        throw new Error(result.error.message || `Gemini returned an error (status: ${result.status || 'unknown'})`);
+        throw new Error(extractErrorMessage(result, 'Gemini'));
     }
 
     return result || {};

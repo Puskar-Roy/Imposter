@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onAiResponse: (callback) => ipcRenderer.on('ai-response', (event, value) => callback(value)),
 
     // Voice & Transcription
+    isNativeLinuxAudio: () => ipcRenderer.invoke('is-native-linux-audio'),
     getDesktopSourceId: () => ipcRenderer.invoke('get-desktop-source-id'),
     startTranscription: (apiKey) => ipcRenderer.invoke('start-transcription', apiKey),
     stopTranscription: () => ipcRenderer.send('stop-transcription'),

@@ -2,6 +2,7 @@ const { ipcMain, desktopCapturer, nativeImage, app, net } = require('electron');
 const Tesseract = require('tesseract.js');
 const { getMainWindow, createIslandWindow, closeIslandWindow, closeSnipperWindow } = require('./window-manager');
 const { startTranscription, stopTranscription, sendAudioChunk, testConnection } = require('./transcription');
+const kdeManager = require('./kde-manager');
 
 let handlersRegistered = false;
 
@@ -39,6 +40,11 @@ function registerIpcHandlers() {
             console.error('[IPC] Assembly key test error:', err);
             return { success: false, error: err.message || 'Unknown error' };
         }
+    });
+
+    ipcMain.handle('is-native-linux-audio', () => {
+        // Use native pipewire record on KDE/Linux instead of Chromium WebRTC
+        return kdeManager.isKdePlasma();
     });
 
     ipcMain.handle('start-transcription', async (event, apiKeyFromRenderer) => {
@@ -114,11 +120,13 @@ function registerIpcHandlers() {
                 mainWindow.setAlwaysOnTop(false);
                 mainWindow.setResizable(true);
                 mainWindow.setContentProtection(false);
+                kdeManager.setKdeStealth(false);
             } else {
                 mainWindow.setSkipTaskbar(true);
                 mainWindow.setAlwaysOnTop(true, 'screen-saver');
                 mainWindow.setResizable(false);
                 mainWindow.setContentProtection(true);
+                kdeManager.setKdeStealth(true);
             }
         } catch (err) {
             console.error('[IPC] set-app-mode error:', err);

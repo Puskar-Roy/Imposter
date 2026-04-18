@@ -615,8 +615,14 @@ function setupEventListeners() {
                     if (newGeminiModelSelect) {
                         newGeminiModelSelect.setOptions([]);
                     }
-                } else if (!modelId && provider === 'gemini') {
-                    alert('Please enter a valid API key and select a model from the list.');
+                } else {
+                    if (!name) {
+                        alert('Please enter a Label/Name for your model.');
+                    } else if (!modelId && provider === 'gemini') {
+                        alert('Please verify and select a Gemini model from the dropdown.');
+                    } else if (!modelId) {
+                        alert('Please enter a valid Model ID.');
+                    }
                 }
             } catch (err) {
                 console.error('[APP] Add model error:', err);

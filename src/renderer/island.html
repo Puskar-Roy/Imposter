@@ -146,14 +146,21 @@
             if (data.type === 'Turn') {
                 const text = data.transcript || '';
                 if (!text) return;
-                subtitleEl.textContent = text;
-                subtitleEl.className = data.end_of_turn ? 'final' : 'partial';
-                
+
                 if (data.end_of_turn) {
+                    // Final sentence — show it styled as "final" and keep visible longer
+                    subtitleEl.textContent = text;
+                    subtitleEl.className = 'final';
+                    
                     clearTimer = setTimeout(() => {
                         subtitleEl.textContent = '';
+                        subtitleEl.className = 'partial';
                         island.classList.remove('active');
-                    }, 5000);
+                    }, 6000);
+                } else {
+                    // Still speaking — show partial in real-time
+                    subtitleEl.textContent = text;
+                    subtitleEl.className = 'partial';
                 }
             }
         });

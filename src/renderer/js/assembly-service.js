@@ -14,52 +14,60 @@ export const AssemblyService = {
             // Clean up any previous session first
             this.stop();
 
-            stream = await navigator.mediaDevices.getDisplayMedia({
-                audio: true,
-                video: { width: 1, height: 1, frameRate: 1 }
-            });
+            const isNativeLinux = await window.electronAPI.isNativeLinuxAudio();
 
-            stream.getVideoTracks().forEach(track => track.stop());
+            if (isNativeLinux) {
+                console.log('[ASSEMBLY] Using native Linux audio capture (bypassing WebRTC)');
+                const started = await window.electronAPI.startTranscription(apiKey);
+                if (!started) throw new Error('Failed to start native transcription on backend');
+            } else {
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    audio: true,
+                    video: { width: 1, height: 1, frameRate: 1 }
+                });
 
-            const audioTracks = stream.getAudioTracks();
-            if (audioTracks.length === 0) {
-                throw new Error('No audio track found. Ensure Share Audio was selected.');
-            }
+                stream.getVideoTracks().forEach(track => track.stop());
 
-            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-            
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
-            await audioContext.audioWorklet.addModule('js/pcm-worklet.js');
-
-            const mediaStream = new MediaStream(audioTracks);
-            sourceNode = audioContext.createMediaStreamSource(mediaStream);
-
-            const started = await window.electronAPI.startTranscription(apiKey);
-            if (!started) throw new Error('Failed to start transcription on backend');
-
-            workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
-            
-            workletNode.port.onmessage = (event) => {
-                try {
-                    const buffer = event.data;
-                    if (!buffer) return;
-                    const uint8Array = new Uint8Array(buffer);
-                    let binary = '';
-                    const len = uint8Array.byteLength;
-                    for (let i = 0; i < len; i++) {
-                        binary += String.fromCharCode(uint8Array[i]);
-                    }
-                    window.electronAPI.sendAudioChunk(btoa(binary));
-                } catch (err) {
-                    // Silent — audio processing is high-frequency
+                const audioTracks = stream.getAudioTracks();
+                if (audioTracks.length === 0) {
+                    throw new Error('No audio track found. Ensure Share Audio was selected.');
                 }
-            };
 
-            sourceNode.connect(workletNode);
-            workletNode.connect(audioContext.destination);
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                await audioContext.audioWorklet.addModule('js/pcm-worklet.js');
+
+                const mediaStream = new MediaStream(audioTracks);
+                sourceNode = audioContext.createMediaStreamSource(mediaStream);
+
+                const started = await window.electronAPI.startTranscription(apiKey);
+                if (!started) throw new Error('Failed to start transcription on backend');
+
+                workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+                
+                workletNode.port.onmessage = (event) => {
+                    try {
+                        const buffer = event.data;
+                        if (!buffer) return;
+                        const uint8Array = new Uint8Array(buffer);
+                        let binary = '';
+                        const len = uint8Array.byteLength;
+                        for (let i = 0; i < len; i++) {
+                            binary += String.fromCharCode(uint8Array[i]);
+                        }
+                        window.electronAPI.sendAudioChunk(btoa(binary));
+                    } catch (err) {
+                        // Silent — audio processing is high-frequency
+                    }
+                };
+
+                sourceNode.connect(workletNode);
+                workletNode.connect(audioContext.destination);
+            }
 
             window.electronAPI.onTranscriptionData((data) => {
                 try {

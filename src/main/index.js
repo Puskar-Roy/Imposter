@@ -5,6 +5,7 @@ require('dotenv').config();
 const { createMainWindow, getMainWindow } = require('./window-manager');
 const { registerShortcuts, unregisterShortcuts } = require('./shortcuts');
 const { registerIpcHandlers } = require('./ipc-handlers');
+const kdeManager = require('./kde-manager');
 // ── Process-Level Crash Guards ──────────────────────────────────────────────
 
 process.on('uncaughtException', (error) => {
@@ -95,8 +96,9 @@ if (!gotTheLock) {
 app.on('will-quit', () => {
     try {
         unregisterShortcuts();
+        kdeManager.cleanupKdeRules();
     } catch (err) {
-        console.error('Shortcut cleanup error:', err);
+        console.error('Cleanup error:', err);
     }
 });
 
